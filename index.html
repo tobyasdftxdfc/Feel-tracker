@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0d1117" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="FUEL" />
+  <meta name="description" content="FUEL – Daily calorie & macro tracker" />
+
+  <title>FUEL Tracker</title>
+
+  <link rel="manifest" href="./manifest.json" />
+
+  <!-- Apple touch icons (generated via SVG below) -->
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #0d1117; }
+    body { font-family: 'DM Sans', sans-serif; color: #e2eaf4; overscroll-behavior: none; }
+    #root { min-height: 100vh; padding-bottom: env(safe-area-inset-bottom); }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2a3547; border-radius: 2px; }
+
+    input, button { font-family: inherit; outline: none; }
+    button { cursor: pointer; border: none; background: none; }
+
+    .food-item:active { background: rgba(255,255,255,0.06) !important; }
+    .log-item .action-btns { opacity: 1; }
+
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeIn 0.2s ease; }
+
+    .stepper-btn:active { background: rgba(255,255,255,0.15) !important; }
+    .preset-btn:active  { background: rgba(74,222,128,0.2)  !important; }
+    .clear-btn:active   { background: rgba(248,113,113,0.25) !important; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- React + Babel via CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback } = React;
+
+const PRESET_FOODS = [
+  { name: "Chicken Breast", calories: 165, protein: 31, carbs: 0,   fat: 3.6,  unit: "g",      baseAmount: 100 },
+  { name: "Brown Rice",     calories: 216, protein: 5,  carbs: 45,  fat: 1.8,  unit: "g",      baseAmount: 100 },
+  { name: "Whole Egg",      calories: 72,  protein: 6,  carbs: 0.4, fat: 5,    unit: "egg",    baseAmount: 1   },
+  { name: "Oats",           calories: 389, protein: 17, carbs: 66,  fat: 7,    unit: "g",      baseAmount: 100 },
+  { name: "Salmon",         calories: 208, protein: 20, carbs: 0,   fat: 13,   unit: "g",      baseAmount: 100 },
+  { name: "Broccoli",       calories: 34,  protein: 2.8,carbs: 7,   fat: 0.4,  unit: "g",      baseAmount: 100 },
+  { name: "Sweet Potato",   calories: 86,  protein: 1.6,carbs: 20,  fat: 0.1,  unit: "g",      baseAmount: 100 },
+  { name: "Avocado",        calories: 160, protein: 2,  carbs: 9,   fat: 15,   unit: "g",      baseAmount: 100 },
+  { name: "Greek Yogurt",   calories: 59,  protein: 10, carbs: 3.6, fat: 0.4,  unit: "g",      baseAmount: 100 },
+  { name: "Almonds",        calories: 173, protein: 6,  carbs: 6,   fat: 15,   unit: "g",      baseAmount: 30  },
+  { name: "Banana",         calories: 89,  protein: 1.1,carbs: 23,  fat: 0.3,  unit: "banana", baseAmount: 1   },
+  { name: "Whole Milk",     calories: 149, protein: 8,  carbs: 12,  fat: 8,    unit: "ml",     baseAmount: 240 },
+  { name: "White Bread",    calories: 79,  protein: 2.7,carbs: 15,  fat: 1,    unit: "slice",  baseAmount: 1   },
+  { name: "Tuna",           calories: 132, protein: 28, carbs: 0,   fat: 1.2,  unit: "g",      baseAmount: 100 },
+  { name: "Black Beans",    calories: 132, protein: 9,  carbs: 24,  fat: 0.5,  unit: "g",      baseAmount: 100 },
+  { name: "Cheddar Cheese", calories: 120, protein: 7,  carbs: 0.4, fat: 10,   unit: "g",      baseAmount: 30  },
+  { name: "Olive Oil",      calories: 119, protein: 0,  carbs: 0,   fat: 13.5, unit: "tbsp",   baseAmount: 1   },
+  { name: "Peanut Butter",  calories: 188, protein: 8,  carbs: 6,   fat: 16,   unit: "tbsp",   baseAmount: 2   },
+  { name: "Apple",          calories: 95,  protein: 0.5,carbs: 25,  fat: 0.3,  unit: "apple",  baseAmount: 1   },
+  { name: "Pasta (cooked)", calories: 158, protein: 5.8,carbs: 31,  fat: 0.9,  unit: "g",      baseAmount: 100 },
+];
+
+const DAILY_GOALS = { calories: 2500, protein: 190, carbs: 253, fat: 81 };
+
+const STORAGE_KEY = "fuel_log_v1";
+const CUSTOM_KEY  = "fuel_custom_v1";
+
+const scale = (food, amount) => {
+  const r = amount / food.baseAmount;
+  return { calories: food.calories * r, protein: food.protein * r, carbs: food.carbs * r, fat: food.fat * r };
+};
+
+const MacroBar = ({ label, value, goal, color }) => {
+  const pct = Math.min((value / goal) * 100, 100);
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5, fontFamily:"'DM Mono',monospace", fontSize:12 }}>
+        <span style={{ color:"#8a9bb0", textTransform:"uppercase", letterSpacing:"0.08em" }}>{label}</span>
+        <span style={{ color:"#e2eaf4" }}>{Math.round(value)}<span style={{ color:"#8a9bb0" }}>/{goal}g</span></span>
+      </div>
+      <div style={{ height:6, background:"rgba(255,255,255,0.07)", borderRadius:3, overflow:"hidden" }}>
+        <div style={{ height:"100%", width:`${pct}%`, background:color, borderRadius:3, transition:"width 0.5s cubic-bezier(.4,0,.2,1)", boxShadow:`0 0 8px ${color}88` }} />
+      </div>
+    </div>
+  );
+};
+
+function App() {
+  const [log, setLog]               = useState(() => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; } });
+  const [customFoods, setCustomFoods] = useState(() => { try { return JSON.parse(localStorage.getItem(CUSTOM_KEY)) || []; } catch { return []; } });
+  const [search, setSearch]         = useState("");
+  const [customForm, setCustomForm] = useState({ name:"", calories:"", protein:"", carbs:"", fat:"", unit:"g", baseAmount:"100" });
+  const [showCustom, setShowCustom] = useState(false);
+  const [addedFeedback, setAddedFeedback] = useState(null);
+  const [editingId, setEditingId]   = useState(null);
+  const [editAmount, setEditAmount] = useState("");
+  const [confirmClear, setConfirmClear] = useState(false);
+
+  // Persist log
+  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(log)); }, [log]);
+  useEffect(() => { localStorage.setItem(CUSTOM_KEY, JSON.stringify(customFoods)); }, [customFoods]);
+
+  // Reset log at midnight
+  useEffect(() => {
+    const check = () => {
+      const saved = localStorage.getItem("fuel_date");
+      const today = new Date().toDateString();
+      if (saved && saved !== today) { setLog([]); }
+      localStorage.setItem("fuel_date", today);
+    };
+    check();
+    const t = setInterval(check, 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  const allFoods = [...PRESET_FOODS, ...customFoods];
+  const filtered = allFoods.filter(f => f.name.toLowerCase().includes(search.toLowerCase()));
+
+  const totals = log.reduce((acc, item) => {
+    const s = scale(item, item.amount);
+    return { calories: acc.calories + s.calories, protein: acc.protein + s.protein, carbs: acc.carbs + s.carbs, fat: acc.fat + s.fat };
+  }, { calories:0, protein:0, carbs:0, fat:0 });
+
+  const addFood = (food) => {
+    setLog(prev => [...prev, { ...food, id: Date.now(), amount: food.baseAmount }]);
+    setAddedFeedback(food.name);
+    setTimeout(() => setAddedFeedback(null), 1400);
+  };
+
+  const removeItem = (id) => { setLog(prev => prev.filter(i => i.id !== id)); if (editingId === id) setEditingId(null); };
+  const startEdit  = (item) => { setEditingId(item.id); setEditAmount(String(item.amount)); };
+  const commitEdit = (id) => {
+    const val = parseFloat(editAmount);
+    if (!isNaN(val) && val > 0) setLog(prev => prev.map(i => i.id === id ? { ...i, amount: val } : i));
+    setEditingId(null);
+  };
+
+  const handleCustomSubmit = () => {
+    const { name, calories, protein, carbs, fat, unit, baseAmount } = customForm;
+    if (!name || !calories || !baseAmount) return;
+    const food = { name, calories:+calories, protein:+(protein||0), carbs:+(carbs||0), fat:+(fat||0), unit:unit||"g", baseAmount:+baseAmount };
+    setCustomFoods(prev => [...prev, food]);
+    addFood(food);
+    setCustomForm({ name:"", calories:"", protein:"", carbs:"", fat:"", unit:"g", baseAmount:"100" });
+    setShowCustom(false);
+  };
+
+  const calPct    = Math.min((totals.calories / DAILY_GOALS.calories) * 100, 100);
+  const remaining = Math.max(DAILY_GOALS.calories - totals.calories, 0);
+
+  const inputStyle = { background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:8, padding:"9px 12px", color:"#e2eaf4", fontSize:13, width:"100%" };
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#0d1117", paddingBottom:60 }}>
+
+      {/* ── HEADER ── */}
+      <div style={{ background:"linear-gradient(180deg,#111827 0%,#0d1117 100%)", borderBottom:"1px solid rgba(255,255,255,0.06)", padding:"calc(env(safe-area-inset-top) + 24px) 20px 20px", position:"sticky", top:0, zIndex:10, backdropFilter:"blur(12px)" }}>
+        <div style={{ maxWidth:480, margin:"0 auto" }}>
+          <div style={{ display:"flex", alignItems:"baseline", gap:10, marginBottom:2 }}>
+            <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, letterSpacing:"-0.03em", color:"#fff" }}>FUEL</h1>
+            <span style={{ fontFamily:"'DM Mono',monospace", fontSize:11, color:"#4ade80", letterSpacing:"0.12em" }}>TRACKER</span>
+          </div>
+
+          {/* Ring + stats */}
+          <div style={{ display:"flex", alignItems:"center", gap:20, marginTop:16 }}>
+            <div style={{ position:"relative", width:72, height:72, flexShrink:0 }}>
+              <svg width="72" height="72" viewBox="0 0 72 72">
+                <circle cx="36" cy="36" r="30" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="6"/>
+                <circle cx="36" cy="36" r="30" fill="none"
+                  stroke={calPct >= 100 ? "#f87171" : "#4ade80"} strokeWidth="6"
+                  strokeDasharray={`${2*Math.PI*30}`}
+                  strokeDashoffset={`${2*Math.PI*30*(1-calPct/100)}`}
+                  strokeLinecap="round" transform="rotate(-90 36 36)"
+                  style={{ transition:"stroke-dashoffset 0.6s cubic-bezier(.4,0,.2,1),stroke 0.3s" }}/>
+              </svg>
+              <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <span style={{ fontFamily:"'DM Mono',monospace", fontSize:13, fontWeight:500, color:"#fff" }}>{Math.round(calPct)}%</span>
+              </div>
+            </div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontFamily:"'DM Mono',monospace", fontSize:28, fontWeight:500, color:"#fff", lineHeight:1 }}>
+                {Math.round(totals.calories)}<span style={{ fontSize:13, color:"#8a9bb0", marginLeft:4 }}>kcal</span>
+              </div>
+              <div style={{ fontSize:13, color:"#8a9bb0", marginTop:4 }}>
+                {remaining > 0
+                  ? <><span style={{ color:"#4ade80" }}>{Math.round(remaining)}</span> kcal remaining</>
+                  : <span style={{ color:"#f87171" }}>Goal reached! 🎯</span>}
+              </div>
+              <div style={{ display:"flex", gap:14, marginTop:10 }}>
+                {[{l:"P",v:totals.protein,c:"#60a5fa"},{l:"C",v:totals.carbs,c:"#fbbf24"},{l:"F",v:totals.fat,c:"#f472b6"}].map(m=>(
+                  <div key={m.l} style={{ display:"flex", alignItems:"center", gap:5 }}>
+                    <div style={{ width:6, height:6, borderRadius:"50%", background:m.c }}/>
+                    <span style={{ fontFamily:"'DM Mono',monospace", fontSize:11, color:"#8a9bb0" }}>
+                      {m.l} <span style={{ color:"#e2eaf4" }}>{Math.round(m.v)}g</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Macro bars */}
+          <div style={{ marginTop:16 }}>
+            <MacroBar label="Protein" value={totals.protein} goal={DAILY_GOALS.protein} color="#60a5fa"/>
+            <MacroBar label="Carbs"   value={totals.carbs}   goal={DAILY_GOALS.carbs}   color="#fbbf24"/>
+            <MacroBar label="Fat"     value={totals.fat}      goal={DAILY_GOALS.fat}     color="#f472b6"/>
+          </div>
+        </div>
+      </div>
+
+      {/* ── BODY ── */}
+      <div style={{ maxWidth:480, margin:"0 auto", padding:"20px 16px 0" }}>
+
+        {/* Search + Custom toggle */}
+        <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+          <div style={{ flex:1, position:"relative" }}>
+            <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"#4a5568", fontSize:14 }}>🔍</span>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search foods…"
+              style={{ ...inputStyle, paddingLeft:36, background:"#161d2a", fontSize:14 }}/>
+          </div>
+          <button onClick={()=>setShowCustom(v=>!v)}
+            style={{ background:showCustom?"#1d4ed8":"rgba(255,255,255,0.07)", border:"1px solid "+(showCustom?"#3b82f6":"rgba(255,255,255,0.1)"), borderRadius:10, padding:"10px 14px", color:"#e2eaf4", fontSize:13, fontWeight:500, whiteSpace:"nowrap" }}>
+            + Custom
+          </button>
+        </div>
+
+        {/* Custom food form */}
+        {showCustom && (
+          <div className="fade-in" style={{ background:"#161d2a", border:"1px solid rgba(255,255,255,0.1)", borderRadius:14, padding:16, marginBottom:16 }}>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:13, color:"#4ade80", marginBottom:12, letterSpacing:"0.05em" }}>ADD CUSTOM FOOD</div>
+            <div style={{ display:"grid", gap:8 }}>
+              <input placeholder="Food name *" value={customForm.name} onChange={e=>setCustomForm(p=>({...p,name:e.target.value}))} style={inputStyle}/>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                {[{k:"calories",l:"Calories *"},{k:"protein",l:"Protein (g)"},{k:"carbs",l:"Carbs (g)"},{k:"fat",l:"Fat (g)"}].map(({k,l})=>(
+                  <input key={k} placeholder={l} type="number" value={customForm[k]} onChange={e=>setCustomForm(p=>({...p,[k]:e.target.value}))}
+                    style={{ ...inputStyle, fontFamily:"'DM Mono',monospace" }}/>
+                ))}
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                <input placeholder="Base amount (e.g. 100)" type="number" value={customForm.baseAmount} onChange={e=>setCustomForm(p=>({...p,baseAmount:e.target.value}))}
+                  style={{ ...inputStyle, fontFamily:"'DM Mono',monospace" }}/>
+                <input placeholder="Unit (g, ml, piece…)" value={customForm.unit} onChange={e=>setCustomForm(p=>({...p,unit:e.target.value}))} style={inputStyle}/>
+              </div>
+              <button onClick={handleCustomSubmit}
+                style={{ background:"linear-gradient(135deg,#4ade80,#22c55e)", border:"none", borderRadius:8, padding:"10px", color:"#0d1117", fontSize:13, fontWeight:700 }}>
+                Add & Log Food
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Added toast */}
+        {addedFeedback && (
+          <div className="fade-in" style={{ background:"#14532d", border:"1px solid #4ade80", borderRadius:10, padding:"10px 14px", marginBottom:12, fontSize:13, color:"#4ade80", display:"flex", alignItems:"center", gap:8 }}>
+            <span>✓</span> <span style={{ color:"#e2eaf4" }}>{addedFeedback}</span> added to log
+          </div>
+        )}
+
+        {/* Food library */}
+        <div style={{ marginBottom:24 }}>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:11, color:"#4a5568", letterSpacing:"0.1em", marginBottom:10 }}>
+            FOOD LIBRARY — {filtered.length} items
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:4, maxHeight:300, overflowY:"auto" }}>
+            {filtered.map((food,i)=>(
+              <div key={i} className="food-item" onClick={()=>addFood(food)}
+                style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:10, padding:"10px 14px", cursor:"pointer", transition:"background 0.15s" }}>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:500, color:"#e2eaf4", marginBottom:3 }}>{food.name}</div>
+                  <div style={{ display:"flex", gap:10 }}>
+                    {[{l:"P",v:food.protein,c:"#60a5fa"},{l:"C",v:food.carbs,c:"#fbbf24"},{l:"F",v:food.fat,c:"#f472b6"}].map(m=>(
+                      <span key={m.l} style={{ fontFamily:"'DM Mono',monospace", fontSize:10, color:m.c }}>{m.l}{m.v}g</span>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <div style={{ fontFamily:"'DM Mono',monospace", fontSize:14, fontWeight:500, color:"#fff" }}>{food.calories}</div>
+                  <div style={{ fontFamily:"'DM Mono',monospace", fontSize:10, color:"#4a5568" }}>per {food.baseAmount}{food.unit}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Today's log */}
+        {log.length > 0 && (
+          <div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:11, color:"#4a5568", letterSpacing:"0.1em" }}>
+                TODAY'S LOG — {log.length} items
+              </div>
+              {confirmClear ? (
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <span style={{ fontFamily:"'DM Mono',monospace", fontSize:11, color:"#f87171" }}>Sure?</span>
+                  <button onClick={()=>{ setLog([]); setEditingId(null); setConfirmClear(false); }}
+                    style={{ background:"rgba(248,113,113,0.2)", border:"1px solid rgba(248,113,113,0.5)", borderRadius:6, padding:"4px 10px", color:"#f87171", fontSize:11, fontFamily:"'DM Mono',monospace", fontWeight:600 }}>
+                    Yes, clear
+                  </button>
+                  <button onClick={()=>setConfirmClear(false)}
+                    style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:6, padding:"4px 10px", color:"#8a9bb0", fontSize:11, fontFamily:"'DM Mono',monospace" }}>
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button className="clear-btn" onClick={()=>setConfirmClear(true)}
+                  style={{ background:"rgba(248,113,113,0.12)", border:"1px solid rgba(248,113,113,0.4)", borderRadius:8, padding:"6px 14px", color:"#f87171", fontSize:12, fontFamily:"'DM Mono',monospace", fontWeight:500, letterSpacing:"0.03em", display:"flex", alignItems:"center", gap:6 }}>
+                  🗑 Clear all
+                </button>
+              )}
+            </div>
+
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {log.map((item)=>{
+                const s = scale(item, item.amount);
+                const isEditing = editingId === item.id;
+                const step = (item.unit==="g"||item.unit==="ml") ? 10 : 1;
+                const previewAmt = parseFloat(editAmount) || item.amount;
+                const preview = scale(item, previewAmt);
+
+                return (
+                  <div key={item.id} className="log-item fade-in"
+                    style={{ background:"rgba(74,222,128,0.05)", border:`1px solid ${isEditing?"rgba(74,222,128,0.3)":"rgba(74,222,128,0.12)"}`, borderRadius:12, padding:"12px 14px", transition:"border-color 0.2s" }}>
+
+                    {/* Top row */}
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:500, color:"#e2eaf4", marginBottom:3, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{item.name}</div>
+                        <div style={{ fontFamily:"'DM Mono',monospace", fontSize:10, color:"#4a5568" }}>
+                          {item.amount}{item.unit} · P{Math.round(s.protein)}g · C{Math.round(s.carbs)}g · F{Math.round(s.fat)}g
+                        </div>
+                      </div>
+                      <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+                        <div style={{ textAlign:"right" }}>
+                          <div style={{ fontFamily:"'DM Mono',monospace", fontSize:14, color:"#4ade80" }}>{Math.round(s.calories)}</div>
+                          <div style={{ fontFamily:"'DM Mono',monospace", fontSize:10, color:"#4a5568" }}>kcal</div>
+                        </div>
+                        <div className="action-btns" style={{ display:"flex", gap:4 }}>
+                          <button onClick={()=>isEditing?setEditingId(null):startEdit(item)}
+                            style={{ background:isEditing?"rgba(96,165,250,0.2)":"rgba(255,255,255,0.07)", border:"1px solid "+(isEditing?"rgba(96,165,250,0.4)":"rgba(255,255,255,0.1)"), borderRadius:6, width:30, height:30, color:isEditing?"#60a5fa":"#8a9bb0", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                            ✎
+                          </button>
+                          <button onClick={()=>removeItem(item.id)}
+                            style={{ background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.2)", borderRadius:6, width:30, height:30, color:"#f87171", fontSize:17, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Amount editor */}
+                    {isEditing && (
+                      <div style={{ marginTop:12 }} className="fade-in">
+                        <div style={{ fontFamily:"'DM Mono',monospace", fontSize:10, color:"#8a9bb0", marginBottom:8, letterSpacing:"0.06em" }}>ADJUST AMOUNT</div>
+                        <div style={{ display:"flex", gap:5, marginBottom:10, flexWrap:"wrap" }}>
+                          {[0.5,1,1.5,2,3].map(mult=>{
+                            const val = item.baseAmount*mult;
+                            const active = parseFloat(editAmount)===val;
+                            return (
+                              <button key={mult} className="preset-btn" onClick={()=>setEditAmount(String(val))}
+                                style={{ background:active?"rgba(74,222,128,0.2)":"rgba(255,255,255,0.05)", border:"1px solid "+(active?"rgba(74,222,128,0.5)":"rgba(255,255,255,0.1)"), borderRadius:7, padding:"5px 11px", color:active?"#4ade80":"#8a9bb0", fontFamily:"'DM Mono',monospace", fontSize:11, transition:"all 0.1s" }}>
+                                {val}{item.unit}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                          <button className="stepper-btn"
+                            onClick={()=>setEditAmount(v=>String(Math.max(step,Math.round((parseFloat(v)||item.amount)-step))))}
+                            style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:8, width:36, height:36, color:"#e2eaf4", fontSize:22, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"background 0.1s" }}>−</button>
+                          <div style={{ position:"relative", flex:1 }}>
+                            <input type="number" value={editAmount} onChange={e=>setEditAmount(e.target.value)}
+                              onKeyDown={e=>e.key==="Enter"&&commitEdit(item.id)}
+                              style={{ width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(74,222,128,0.35)", borderRadius:8, padding:"8px 44px 8px 12px", color:"#fff", fontSize:15, fontFamily:"'DM Mono',monospace", textAlign:"center" }}/>
+                            <span style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", fontFamily:"'DM Mono',monospace", fontSize:11, color:"#8a9bb0", pointerEvents:"none" }}>{item.unit}</span>
+                          </div>
+                          <button className="stepper-btn"
+                            onClick={()=>setEditAmount(v=>String(Math.round((parseFloat(v)||item.amount)+step)))}
+                            style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:8, width:36, height:36, color:"#e2eaf4", fontSize:22, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"background 0.1s" }}>+</button>
+                          <button onClick={()=>commitEdit(item.id)}
+                            style={{ background:"linear-gradient(135deg,#4ade80,#22c55e)", border:"none", borderRadius:8, padding:"8px 16px", color:"#0d1117", fontSize:12, fontWeight:700, flexShrink:0 }}>Save</button>
+                        </div>
+                        <div style={{ fontFamily:"'DM Mono',monospace", fontSize:11, color:"#4ade80", marginTop:8, textAlign:"center" }}>
+                          → {Math.round(preview.calories)} kcal · P{Math.round(preview.protein)}g · C{Math.round(preview.carbs)}g · F{Math.round(preview.fat)}g
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {log.length === 0 && !showCustom && (
+          <div style={{ textAlign:"center", padding:"48px 0", color:"#2a3547" }}>
+            <div style={{ fontSize:36, marginBottom:12 }}>🥗</div>
+            <div style={{ fontFamily:"'DM Mono',monospace", fontSize:12, letterSpacing:"0.06em" }}>Tap a food to log it</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js").catch(console.error);
+    });
+  }
+</script>
+</body>
+</html>
